@@ -18,7 +18,7 @@ export const NoteSchema = z.object({
 export const EventSchema = z.object({
   id: z.uuid(),
   title: z.string().min(1, "Title is required"),
-  dateISO: z.string().datetime({ message: "Invalid ISO date string" }),
+  dateISO: z.iso.datetime(),
   createdAt: z.date(),
 });
 
