@@ -19,13 +19,29 @@ export type BrainDumpResult = {
   errorType?: "parsing" | "validation" | "unknown";
 };
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "An unexpected error occurred while communicating with the LLM.";
+}
+
 export async function processBrainDump(text: string): Promise<BrainDumpResult> {
   try {
+    const normalizedText = text.trim();
+    if (!normalizedText) {
+      return {
+        success: false,
+        error: "Please enter a brain dump before submitting.",
+        errorType: "validation",
+      };
+    }
+
     const currentYear = new Date().getFullYear();
     const { output } = await generateText({
       model: ollama("qwen3.5:9b"),
       output: Output.object({ schema: BrainDumpExtractionSchema }),
-      prompt: `Extract tasks, notes, and events from the following text.\n\nText:\n"${text}"\n\nIf you don't find any items for a category, return an empty array for it.`,
+      prompt: `Extract tasks, notes, and events from the following text.\n\nText:\n"${normalizedText}"\n\nIf you don't find any items for a category, return an empty array for it.`,
       system: "You are an intelligent assistant that processes a user's unstructured 'brain dump'. " +
         "Categorize the information strictly into lists of Tasks, Notes, and Events. " +
         "- Tasks must have a title and status (TODO, DONE, MIGRATED, CANCELLED). " +
@@ -64,22 +80,22 @@ export async function processBrainDump(text: string): Promise<BrainDumpResult> {
     }
 
     return { success: true, data: output };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error during processBrainDump:", error);
 
     // AI SDK errors or Zod validation errors
-    if (error.name === "TypeValidationError" || error instanceof z.ZodError) {
+    if ((error instanceof Error && error.name === "TypeValidationError") || error instanceof z.ZodError) {
       return {
         success: false,
-        error: `LLM schema mismatch or hallucination: ${error.message}`,
+        error: `LLM schema mismatch or hallucination: ${getErrorMessage(error)}`,
         errorType: "validation",
       };
     }
 
-    if (error.name === "JSONParseError" || error.name === "NoObjectGeneratedError") {
+    if (error instanceof Error && (error.name === "JSONParseError" || error.name === "NoObjectGeneratedError")) {
       return {
         success: false,
-        error: `LLM failed to output valid JSON: ${error.message}`,
+        error: `LLM failed to output valid JSON: ${getErrorMessage(error)}`,
         errorType: "parsing",
       };
     }
@@ -87,7 +103,7 @@ export async function processBrainDump(text: string): Promise<BrainDumpResult> {
     // Fallback for general errors (e.g. connection refused to Ollama)
     return {
       success: false,
-      error: error.message || "An unexpected error occurred while communicating with the LLM.",
+      error: getErrorMessage(error),
       errorType: "unknown",
     };
   }
