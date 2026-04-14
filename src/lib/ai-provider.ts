@@ -1,5 +1,5 @@
-import { createOllama } from 'ollama-ai-provider-v2';
+import { createOpenAI } from "@ai-sdk/openai";
 
-export const ollama = createOllama({
-  baseURL: 'http://localhost:11434/api',
+export const openai = createOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });

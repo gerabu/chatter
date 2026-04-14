@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { EventSchema, NoteSchema, TaskSchema } from "@/contracts";
-import { ollama } from "@/lib/ai-provider";
+import { openai } from "@/lib/ai-provider";
 import { prisma } from "@/lib/prisma";
 import { generateText, Output } from "ai";
 import { z } from "zod";
@@ -50,7 +50,7 @@ export async function processBrainDump(text: string): Promise<BrainDumpResult> {
 
     const currentYear = new Date().getFullYear();
     const { output } = await generateText({
-      model: ollama("qwen3.5:9b"),
+      model: openai("gpt-4o-mini"),
       output: Output.object({ schema: BrainDumpExtractionSchema }),
       prompt: `Extract tasks, notes, and events from the following text.\n\nText:\n"${normalizedText}"\n\nIf you don't find any items for a category, return an empty array for it.`,
       system: "You are an intelligent assistant that processes a user's unstructured 'brain dump'. " +
