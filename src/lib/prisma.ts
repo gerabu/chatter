@@ -1,10 +1,32 @@
 import "dotenv/config";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client";
+import { Pool } from "pg";
 
-const connectionString = `${process.env.DATABASE_URL}`;
+const connectionString =
+  process.env.POSTGRES_PRISMA_URL;
+if (!connectionString) {
+  throw new Error("POSTGRES_PRISMA_URL is not set (required on Vercel)");
+}
 
-const adapter = new PrismaBetterSqlite3({ url: connectionString });
-const prisma = new PrismaClient({ adapter });
+const globalForPrisma = globalThis as unknown as {
+  chatterPool?: Pool;
+  chatterPrisma?: PrismaClient;
+};
 
-export { prisma };
+function getPrisma(): PrismaClient {
+  if (globalForPrisma.chatterPrisma) {
+    return globalForPrisma.chatterPrisma;
+  }
+  const pool =
+    globalForPrisma.chatterPool ??
+    new Pool({
+      connectionString,
+    });
+  globalForPrisma.chatterPool = pool;
+  const client = new PrismaClient({ adapter: new PrismaPg(pool) });
+  globalForPrisma.chatterPrisma = client;
+  return client;
+}
+
+export const prisma = getPrisma();
