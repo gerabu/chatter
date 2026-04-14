@@ -1,12 +1,21 @@
 import { BrainDumpForm } from "./_components/BrainDumpForm";
 import { Board } from "./_components/Board";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    redirect("/auth/signin");
+  }
+
   const [tasks, notes, events] = await Promise.all([
-    prisma.task.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.note.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.event.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.task.findMany({ where: { user_id: userId }, orderBy: { createdAt: "desc" } }),
+    prisma.note.findMany({ where: { user_id: userId }, orderBy: { createdAt: "desc" } }),
+    prisma.event.findMany({ where: { user_id: userId }, orderBy: { createdAt: "asc" } }),
   ]);
 
   return (

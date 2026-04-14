@@ -1,5 +1,6 @@
 "use server";
 
+import { auth } from "@/auth";
 import { EventSchema, NoteSchema, TaskSchema } from "@/contracts";
 import { ollama } from "@/lib/ai-provider";
 import { prisma } from "@/lib/prisma";
@@ -28,6 +29,16 @@ function getErrorMessage(error: unknown): string {
 
 export async function processBrainDump(text: string): Promise<BrainDumpResult> {
   try {
+    const session = await auth();
+    const userId = session?.user?.id;
+    if (!userId) {
+      return {
+        success: false,
+        error: "Please sign in before processing your board items.",
+        errorType: "validation",
+      };
+    }
+
     const normalizedText = text.trim();
     if (!normalizedText) {
       return {
@@ -58,6 +69,7 @@ export async function processBrainDump(text: string): Promise<BrainDumpResult> {
         data: output.tasks.map((t) => ({
           title: t.title,
           status: t.status,
+          user_id: userId,
         })),
       });
     }
@@ -66,6 +78,7 @@ export async function processBrainDump(text: string): Promise<BrainDumpResult> {
       await prisma.note.createMany({
         data: output.notes.map((n) => ({
           content: n.content,
+          user_id: userId,
         })),
       });
     }
@@ -75,6 +88,7 @@ export async function processBrainDump(text: string): Promise<BrainDumpResult> {
         data: output.events.map((e) => ({
           title: e.title,
           dateISO: e.dateISO,
+          user_id: userId,
         })),
       });
     }
