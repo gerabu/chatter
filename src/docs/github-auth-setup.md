@@ -47,4 +47,4 @@ Copy the output to `NEXTAUTH_SECRET`.
 1. Run `pnpm dev`.
 2. Visit `http://localhost:3000/auth/signin`.
 3. Click **Continue with GitHub**.
-4. Confirm redirect back to `/dashboard`.
+4. Confirm redirect back to `/app`.

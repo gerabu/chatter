@@ -43,4 +43,4 @@ openssl rand -base64 32
 1. Run `pnpm dev`.
 2. Visit `http://localhost:3000/auth/signup` or `http://localhost:3000/auth/signin`.
 3. Click the Google auth button.
-4. Confirm redirect back to `/dashboard`.
+4. Confirm redirect back to `/app`.

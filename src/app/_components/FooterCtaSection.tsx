@@ -14,16 +14,16 @@ export function FooterCtaSection() {
               Skip the taxonomy. Start with the raw thought.
             </h2>
             <p className="text-base leading-7 text-stone-600 dark:text-stone-400">
-              The dashboard is where the system earns the promise. Paste the mess,
+              The app is where the system earns the promise. Paste the mess,
               let the model sort it, and keep moving.
             </p>
           </div>
 
           <Link
-            href="/dashboard"
+            href="/app"
             className="inline-flex h-12 items-center justify-center gap-2 border border-stone-950 bg-stone-950 px-6 text-sm font-semibold text-stone-50 shadow-sm transition hover:bg-stone-800 dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-300"
           >
-            Open Dashboard
+            Open App
             <ArrowUpRight className="h-4 w-4" />
           </Link>
 

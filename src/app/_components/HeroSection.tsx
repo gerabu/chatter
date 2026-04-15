@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, LayoutDashboard, Sparkles } from "lucide-react";
+import { ArrowRight, AppWindow, Sparkles } from "lucide-react";
 
 export function HeroSection() {
   return (
@@ -36,17 +36,17 @@ export function HeroSection() {
 
         <div className="mt-10 flex flex-col gap-3 sm:flex-row animate-fade-in">
           <Link
-            href="/dashboard"
+            href="/app"
             className="inline-flex h-12 items-center justify-center gap-2 border border-stone-950 bg-stone-950 px-6 text-sm font-semibold text-stone-50 shadow-sm transition hover:bg-stone-800 dark:border-stone-100 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-300"
           >
-            Open Dashboard
+            Open App
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
             href="#workflow"
             className="inline-flex h-12 items-center justify-center gap-2 border border-stone-300 bg-white px-6 text-sm font-semibold text-stone-700 transition hover:border-stone-950 hover:text-stone-950 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-stone-100 dark:hover:text-stone-100"
           >
-            <LayoutDashboard className="h-4 w-4" />
+            <AppWindow className="h-4 w-4" />
             See the workflow
           </Link>
         </div>

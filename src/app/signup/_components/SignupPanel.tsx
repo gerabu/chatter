@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 type Provider = "github" | "google";
 
 async function register(provider: Provider) {
-  await signIn(provider, { callbackUrl: "/dashboard" });
+  await signIn(provider, { callbackUrl: "/app" });
 }
 
 export function SignupPanel() {
