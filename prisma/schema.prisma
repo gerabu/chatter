@@ -29,6 +29,7 @@ model Note {
   id        String   @id @default(uuid())
   content   String
   createdAt DateTime @default(now())
+  deleted_at DateTime?
   user_id   String
   user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 

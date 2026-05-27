@@ -14,7 +14,7 @@ export default async function DashboardPage() {
 
   const [tasks, notes, events] = await Promise.all([
     prisma.task.findMany({ where: { user_id: userId }, orderBy: { createdAt: "desc" } }),
-    prisma.note.findMany({ where: { user_id: userId }, orderBy: { createdAt: "desc" } }),
+    prisma.note.findMany({ where: { user_id: userId, deleted_at: null }, orderBy: { createdAt: "desc" } }),
     prisma.event.findMany({ where: { user_id: userId }, orderBy: { createdAt: "asc" } }),
   ]);
 
