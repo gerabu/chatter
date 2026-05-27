@@ -12,10 +12,17 @@ export type TaskItem = {
   status: TaskStatus;
 };
 
+const statusLabels: Record<TaskStatus, string> = {
+  TODO: "To do",
+  IN_PROGRESS: "In Progress",
+  DONE: "Done",
+  CANCELLED: "Cancelled",
+};
+
 const statusStyles: Record<TaskStatus, string> = {
   TODO: "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/60 dark:text-amber-200",
   DONE: "border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200",
-  MIGRATED: "border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-700 dark:bg-blue-900/60 dark:text-blue-200",
+  IN_PROGRESS: "border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-700 dark:bg-blue-900/60 dark:text-blue-200",
   CANCELLED: "border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-700 dark:bg-rose-900/60 dark:text-rose-200",
 };
 
@@ -60,7 +67,7 @@ export function TaskCard({ task }: { task: TaskItem }) {
       >
         {allowedStatuses.map((status) => (
           <option key={status} value={status}>
-            {status}
+            {statusLabels[status]}
           </option>
         ))}
       </select>

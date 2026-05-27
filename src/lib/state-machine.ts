@@ -1,10 +1,10 @@
 import { TaskStatus } from "../contracts";
 
 const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
-  TODO: ["DONE", "MIGRATED", "CANCELLED"],
+  TODO: ["IN_PROGRESS", "DONE", "CANCELLED"],
+  IN_PROGRESS: ["TODO"],
   DONE: ["TODO"],
-  MIGRATED: [], // Migrated is a terminal state
-  CANCELLED: ["TODO"], // You must un-cancel first before finishing
+  CANCELLED: ["TODO"],
 };
 
 export function canTransitionTask(

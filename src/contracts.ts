@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const TaskStatusSchema = z.enum(["TODO", "DONE", "MIGRATED", "CANCELLED"]);
+export const TaskStatusSchema = z.enum(["TODO", "IN_PROGRESS", "DONE", "CANCELLED"]);
 
 export const TaskSchema = z.object({
   id: z.uuid(),

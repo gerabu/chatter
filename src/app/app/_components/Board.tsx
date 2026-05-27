@@ -21,7 +21,7 @@ type BoardProps = {
   events: EventItem[];
 };
 
-const ACTIVE_STATUSES: TaskStatus[] = ["TODO", "MIGRATED"];
+const ACTIVE_STATUSES: TaskStatus[] = ["TODO", "IN_PROGRESS"];
 const CLOSED_STATUSES: TaskStatus[] = ["DONE", "CANCELLED"];
 
 function EmptyState({ label }: { label: string }) {

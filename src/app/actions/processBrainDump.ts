@@ -55,7 +55,7 @@ export async function processBrainDump(text: string): Promise<BrainDumpResult> {
       prompt: `Extract tasks, notes, and events from the following text.\n\nText:\n"${normalizedText}"\n\nIf you don't find any items for a category, return an empty array for it.`,
       system: "You are an intelligent assistant that processes a user's unstructured 'brain dump'. " +
         "Categorize the information strictly into lists of Tasks, Notes, and Events. " +
-        "- Tasks must have a title and status (TODO, DONE, MIGRATED, CANCELLED). " +
+        "- Tasks must have a title and status (TODO, IN_PROGRESS, DONE, CANCELLED). " +
         "- Notes must be objects with a 'content' field containing the text. " +
         "Example: {\"notes\": [{\"content\": \"some text\"}]} " +
         "- Events must have a title and have a dateISO in full ISO-8601 format (e.g., YYYY-MM-DDTHH:mm:ssZ). " +

@@ -9,8 +9,8 @@ datasource db {
 
 enum TaskStatus {
   TODO
+  IN_PROGRESS
   DONE
-  MIGRATED
   CANCELLED
 }
 

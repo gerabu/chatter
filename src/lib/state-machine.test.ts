@@ -4,9 +4,13 @@ import { canTransitionTask, getAllowedTaskStatuses, transitionTask } from "./sta
 describe("State Machine - Task Transitions", () => {
   describe("canTransitionTask", () => {
     it("allows valid forward transitions from TODO", () => {
+      expect(canTransitionTask("TODO", "IN_PROGRESS")).toBe(true);
       expect(canTransitionTask("TODO", "DONE")).toBe(true);
-      expect(canTransitionTask("TODO", "MIGRATED")).toBe(true);
       expect(canTransitionTask("TODO", "CANCELLED")).toBe(true);
+    });
+
+    it("allows TODO and IN_PROGRESS to toggle", () => {
+      expect(canTransitionTask("IN_PROGRESS", "TODO")).toBe(true);
     });
 
     it("allows reverting from DONE backwards to TODO", () => {
@@ -19,32 +23,32 @@ describe("State Machine - Task Transitions", () => {
 
     it("blocks illegal transitions (e.g. CANCELLED -> DONE)", () => {
       expect(canTransitionTask("CANCELLED", "DONE")).toBe(false);
-      expect(canTransitionTask("CANCELLED", "MIGRATED")).toBe(false);
+      expect(canTransitionTask("CANCELLED", "IN_PROGRESS")).toBe(false);
     });
 
-    it("treats MIGRATED as a terminal state", () => {
-      expect(canTransitionTask("MIGRATED", "TODO")).toBe(false);
-      expect(canTransitionTask("MIGRATED", "DONE")).toBe(false);
-      expect(canTransitionTask("MIGRATED", "CANCELLED")).toBe(false);
+    it("blocks IN_PROGRESS from finishing or cancelling directly", () => {
+      expect(canTransitionTask("IN_PROGRESS", "DONE")).toBe(false);
+      expect(canTransitionTask("IN_PROGRESS", "CANCELLED")).toBe(false);
     });
 
     it("allows no-op transitions (current === target)", () => {
       expect(canTransitionTask("TODO", "TODO")).toBe(true);
+      expect(canTransitionTask("IN_PROGRESS", "IN_PROGRESS")).toBe(true);
       expect(canTransitionTask("DONE", "DONE")).toBe(true);
     });
   });
 
   describe("getAllowedTaskStatuses", () => {
     it("returns current status and all valid targets for TODO", () => {
-      expect(getAllowedTaskStatuses("TODO")).toEqual(["TODO", "DONE", "MIGRATED", "CANCELLED"]);
+      expect(getAllowedTaskStatuses("TODO")).toEqual(["TODO", "IN_PROGRESS", "DONE", "CANCELLED"]);
+    });
+
+    it("returns current status and TODO for IN_PROGRESS", () => {
+      expect(getAllowedTaskStatuses("IN_PROGRESS")).toEqual(["IN_PROGRESS", "TODO"]);
     });
 
     it("returns current status and TODO for DONE", () => {
       expect(getAllowedTaskStatuses("DONE")).toEqual(["DONE", "TODO"]);
-    });
-
-    it("returns only current status for terminal MIGRATED", () => {
-      expect(getAllowedTaskStatuses("MIGRATED")).toEqual(["MIGRATED"]);
     });
 
     it("returns current status and TODO for CANCELLED", () => {
@@ -54,12 +58,12 @@ describe("State Machine - Task Transitions", () => {
 
   describe("transitionTask", () => {
     it("returns the target state if transition is valid", () => {
-      expect(transitionTask("TODO", "DONE")).toBe("DONE");
+      expect(transitionTask("TODO", "IN_PROGRESS")).toBe("IN_PROGRESS");
     });
 
     it("throws an error if transition is invalid", () => {
-      expect(() => transitionTask("CANCELLED", "DONE")).toThrowError(
-        "Invalid state transition from CANCELLED to DONE"
+      expect(() => transitionTask("IN_PROGRESS", "DONE")).toThrowError(
+        "Invalid state transition from IN_PROGRESS to DONE"
       );
     });
   });
