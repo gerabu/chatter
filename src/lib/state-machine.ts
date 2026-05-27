@@ -27,3 +27,10 @@ export function transitionTask(
   }
   return targetStatus;
 }
+
+/** Status values shown in a status dropdown for the given current status. */
+export function getAllowedTaskStatuses(currentStatus: TaskStatus): TaskStatus[] {
+  const targets = ALLOWED_TRANSITIONS[currentStatus];
+  const options = [currentStatus, ...targets.filter((s) => s !== currentStatus)];
+  return options;
+}

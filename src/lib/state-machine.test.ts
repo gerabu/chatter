@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canTransitionTask, transitionTask } from "./state-machine";
+import { canTransitionTask, getAllowedTaskStatuses, transitionTask } from "./state-machine";
 
 describe("State Machine - Task Transitions", () => {
   describe("canTransitionTask", () => {
@@ -31,6 +31,24 @@ describe("State Machine - Task Transitions", () => {
     it("allows no-op transitions (current === target)", () => {
       expect(canTransitionTask("TODO", "TODO")).toBe(true);
       expect(canTransitionTask("DONE", "DONE")).toBe(true);
+    });
+  });
+
+  describe("getAllowedTaskStatuses", () => {
+    it("returns current status and all valid targets for TODO", () => {
+      expect(getAllowedTaskStatuses("TODO")).toEqual(["TODO", "DONE", "MIGRATED", "CANCELLED"]);
+    });
+
+    it("returns current status and TODO for DONE", () => {
+      expect(getAllowedTaskStatuses("DONE")).toEqual(["DONE", "TODO"]);
+    });
+
+    it("returns only current status for terminal MIGRATED", () => {
+      expect(getAllowedTaskStatuses("MIGRATED")).toEqual(["MIGRATED"]);
+    });
+
+    it("returns current status and TODO for CANCELLED", () => {
+      expect(getAllowedTaskStatuses("CANCELLED")).toEqual(["CANCELLED", "TODO"]);
     });
   });
 
