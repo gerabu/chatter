@@ -1,8 +1,8 @@
-import { BrainDumpForm } from "./_components/BrainDumpForm";
-import { Board } from "./_components/Board";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { Board } from "./_components/Board";
+import { BrainDumpChat } from "./_components/BrainDumpChat";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -13,9 +13,9 @@ export default async function DashboardPage() {
   }
 
   const [tasks, notes, events] = await Promise.all([
-    prisma.task.findMany({ where: { user_id: userId }, orderBy: { createdAt: "desc" } }),
+    prisma.task.findMany({ where: { user_id: userId, deleted_at: null }, orderBy: { createdAt: "desc" } }),
     prisma.note.findMany({ where: { user_id: userId, deleted_at: null }, orderBy: { createdAt: "desc" } }),
-    prisma.event.findMany({ where: { user_id: userId }, orderBy: { createdAt: "asc" } }),
+    prisma.event.findMany({ where: { user_id: userId, deleted_at: null }, orderBy: { createdAt: "asc" } }),
   ]);
 
   return (
@@ -24,8 +24,8 @@ export default async function DashboardPage() {
         <aside className="flex min-h-0 flex-col border-r border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900 lg:col-span-3">
           <div className="min-h-0 flex-1" aria-hidden="true" />
 
-          <div className="border-t border-stone-200 bg-stone-50 px-5 py-4 dark:border-stone-800 dark:bg-stone-900/80">
-            <BrainDumpForm />
+          <div className="border-t border-stone-200 bg-stone-50 px-5 py-4 dark:border-stone-800 dark:bg-stone-900/80 overflow-y-auto">
+            <BrainDumpChat />
           </div>
         </aside>
 

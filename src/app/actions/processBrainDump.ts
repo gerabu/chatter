@@ -1,10 +1,7 @@
 "use server";
 
-import { auth } from "@/auth";
 import { EventSchema, NoteSchema, TaskSchema } from "@/contracts";
-import { openai } from "@/lib/ai-provider";
-import { prisma } from "@/lib/prisma";
-import { generateText, Output } from "ai";
+import { suggestBrainDumpActions } from "@/app/actions/suggestBrainDumpActions";
 import { z } from "zod";
 
 const BrainDumpExtractionSchema = z.object({
@@ -20,104 +17,59 @@ export type BrainDumpResult = {
   errorType?: "parsing" | "validation" | "unknown";
 };
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return "An unexpected error occurred while communicating with the LLM.";
-}
-
 export async function processBrainDump(text: string): Promise<BrainDumpResult> {
   try {
-    const session = await auth();
-    const userId = session?.user?.id;
-    if (!userId) {
+    const result = await suggestBrainDumpActions(text);
+    if (!result.success) {
       return {
         success: false,
-        error: "Please sign in before processing your board items.",
+        error: result.error,
+        errorType: result.errorType,
+      };
+    }
+
+    // Legacy compatibility: return only CREATE items without persisting.
+    const tasks: Array<{ title: string; status: "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED" }> = [];
+    const notes: Array<{ content: string }> = [];
+    const events: Array<{ title: string; dateISO: string }> = [];
+
+    for (const action of result.actions) {
+      if (action.action !== "CREATE") continue;
+      if (action.entityType === "task" && action.title) {
+        tasks.push({ title: action.title, status: action.status ?? "TODO" });
+      }
+      if (action.entityType === "note" && action.content) {
+        notes.push({ content: action.content });
+      }
+      if (action.entityType === "event" && action.title && action.dateISO) {
+        events.push({ title: action.title, dateISO: action.dateISO });
+      }
+    }
+
+    const output = {
+      tasks,
+      notes,
+      events,
+    };
+
+    const parsed = BrainDumpExtractionSchema.safeParse(output);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Suggested actions could not be converted to legacy format.",
         errorType: "validation",
       };
     }
 
-    const normalizedText = text.trim();
-    if (!normalizedText) {
-      return {
-        success: false,
-        error: "Please enter a brain dump before submitting.",
-        errorType: "validation",
-      };
-    }
-
-    const currentYear = new Date().getFullYear();
-    const { output } = await generateText({
-      model: openai("gpt-4o-mini"),
-      output: Output.object({ schema: BrainDumpExtractionSchema }),
-      prompt: `Extract tasks, notes, and events from the following text.\n\nText:\n"${normalizedText}"\n\nIf you don't find any items for a category, return an empty array for it.`,
-      system: "You are an intelligent assistant that processes a user's unstructured 'brain dump'. " +
-        "Categorize the information strictly into lists of Tasks, Notes, and Events. " +
-        "- Tasks must have a title and status (TODO, IN_PROGRESS, DONE, CANCELLED). " +
-        "- Notes must be objects with a 'content' field containing the text. " +
-        "Example: {\"notes\": [{\"content\": \"some text\"}]} " +
-        "- Events must have a title and have a dateISO in full ISO-8601 format (e.g., YYYY-MM-DDTHH:mm:ssZ). " +
-        "If no time is provided, assume midnight: YYYY-MM-DDT00:00:00Z. " +
-        `If no year is provided, assume current year: ${currentYear}. ` +
-        "Output everything according to the provided JSON schema. Ensure empty arrays are returned if no corresponding items are identified. DO NOT wrap your response in markdown code blocks (e.g. ```json). Output raw JSON only.",
-    });
-
-    if (output.tasks && output.tasks.length > 0) {
-      await prisma.task.createMany({
-        data: output.tasks.map((t) => ({
-          title: t.title,
-          status: t.status,
-          user_id: userId,
-        })),
-      });
-    }
-
-    if (output.notes && output.notes.length > 0) {
-      await prisma.note.createMany({
-        data: output.notes.map((n) => ({
-          content: n.content,
-          user_id: userId,
-        })),
-      });
-    }
-
-    if (output.events && output.events.length > 0) {
-      await prisma.event.createMany({
-        data: output.events.map((e) => ({
-          title: e.title,
-          dateISO: e.dateISO,
-          user_id: userId,
-        })),
-      });
-    }
-
-    return { success: true, data: output };
+    return { success: true, data: parsed.data };
   } catch (error: unknown) {
     console.error("Error during processBrainDump:", error);
-
-    // AI SDK errors or Zod validation errors
-    if ((error instanceof Error && error.name === "TypeValidationError") || error instanceof z.ZodError) {
-      return {
-        success: false,
-        error: `LLM schema mismatch or hallucination: ${getErrorMessage(error)}`,
-        errorType: "validation",
-      };
+    if (error instanceof z.ZodError) {
+      return { success: false, error: error.message, errorType: "validation" };
     }
-
-    if (error instanceof Error && (error.name === "JSONParseError" || error.name === "NoObjectGeneratedError")) {
-      return {
-        success: false,
-        error: `LLM failed to output valid JSON: ${getErrorMessage(error)}`,
-        errorType: "parsing",
-      };
-    }
-
-    // Fallback for general errors (e.g. connection refused to Ollama)
     return {
       success: false,
-      error: getErrorMessage(error),
+      error: error instanceof Error ? error.message : "Unknown error while processing brain dump.",
       errorType: "unknown",
     };
   }

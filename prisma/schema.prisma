@@ -19,6 +19,7 @@ model Task {
   title     String
   status    TaskStatus
   createdAt DateTime   @default(now())
+  deleted_at DateTime?
   user_id   String
   user      User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
@@ -41,6 +42,7 @@ model Event {
   title     String
   dateISO   String
   createdAt DateTime @default(now())
+  deleted_at DateTime?
   user_id   String
   user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
