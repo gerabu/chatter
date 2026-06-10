@@ -1,12 +1,7 @@
 "use client";
 
-import { type AgentAction, getActionLabel, groupActionsForPreview } from "@/lib/brain-dump-agent";
+import { type AgentAction, type RejectedAction, getActionLabel, groupActionsForPreview } from "@/lib/brain-dump-agent";
 import { Check, Sparkles } from "lucide-react";
-
-type RejectedAction = {
-  action: AgentAction;
-  reason: string;
-};
 
 type ActionPreviewProps = {
   actions: AgentAction[];

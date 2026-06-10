@@ -61,12 +61,33 @@ Within each group, sort by `entityType` (`task` → `note` → `event`), then by
 
 Helper: `groupActionsForPreview(actions)` in `src/lib/brain-dump-agent.ts` returns `{ create, update, changeStatus, delete }` arrays for `ActionPreview`.
 
+## Known Bugs (post-implementation)
+
+### B1: Strict schema at the LLM boundary crashes suggest — **FIXED** (T7–T9)
+
+The strict `AgentPlanSchema` (with `.min(1)`, `z.iso.datetime()`, `.strict()`) is passed directly to `Output.object` in `suggestBrainDumpActions`. When the LLM fills optional fields with empty strings instead of omitting them — e.g.:
+
+```json
+{"actions":[{"action":"UPDATE","entityType":"task","id":"<uuid>","title":"…","content":"","dateISO":"","status":"DONE"}]}
+```
+
+…the AI SDK throws (`TypeValidationError` / `NoObjectGeneratedError`) **before** `validateAgentActions` runs. The `rejected[]` mechanism never sees the plan, and the raw Zod issue dump is rendered in the UI. One malformed field kills the entire plan (all-or-nothing instead of per-item rejection).
+
+Secondary symptom from the same trace: for "ya compré los zapatos…" the model chose `UPDATE` + `status: "DONE"` with junk empty fields instead of `CHANGE_STATUS` — the prompt never tells it to omit unused fields or to prefer `CHANGE_STATUS` for completion intents.
+
+**Fix strategy (tasks T7–T9):** validate leniently at the LLM boundary, normalize, then run the existing strict per-item validation server-side; route per-item failures into `rejected[]`; show only friendly errors in the UI.
+
 ## Constraints
 
 ### Must
 - Require auth for suggest and apply (same as `processBrainDump`).
 - Scope all reads/writes to `user_id` from session.
-- Use Vercel AI SDK `generateText` + `Output.object` with `AgentPlanSchema = z.object({ actions: z.array(AgentActionSchema) })` (discriminated union on `action`).
+- Use Vercel AI SDK `generateText` + `Output.object` with a **lenient** `AgentPlanLLMSchema` (see T7); the strict `AgentActionSchema` (discriminated union on `action`) is applied **per item, server-side, after normalization** — never as the LLM parse contract.
+- **LLM boundary resilience:**
+  - Normalize raw LLM actions before strict validation: trim strings; treat empty/whitespace-only optional fields (`title`, `content`, `dateISO`, `status`) as omitted; accept date-only `YYYY-MM-DD` for `dateISO` by coercing to `T00:00:00Z`.
+  - Canonicalize a task `UPDATE` whose only effective mutable field is `status` into `CHANGE_STATUS`.
+  - Strict-parse each normalized action individually (`safeParse`); failures land in `rejected[]` with a readable reason — a single bad item must never discard the whole plan or surface an exception.
+  - Suggest must not propagate raw Zod/SDK error payloads to the client; log details server-side, return a short human-readable `error`.
 - Enforce entity rules:
   - **CHANGE_STATUS** — `entityType: "task"` only; `status` must be `TaskStatusSchema`; transitions must pass `transitionTask` / `canTransitionTask` from `src/lib/state-machine.ts`.
   - **Notes** — no `status` on any action; **DELETE** uses soft-delete (`deleted_at`).
@@ -101,25 +122,31 @@ Helper: `groupActionsForPreview(actions)` in `src/lib/brain-dump-agent.ts` retur
 
 ## Current State
 
-- **Brain dump (create-only):** `src/app/actions/processBrainDump.ts` — OpenAI structured output → immediate `createMany` for tasks/notes/events.
-- **UI:** `src/app/app/_components/BrainDumpForm.tsx` — single textarea, voice input, submit → `processBrainDump` → clear input + refresh. Rendered in aside on `src/app/app/page.tsx`.
+> **Status:** T1–T6 are implemented and shipped. The list below describes the implemented state; tasks T7–T9 fix bug B1.
+
+- **Agent core:** `src/lib/brain-dump-agent.ts` — strict `AgentActionSchema` / `AgentPlanSchema`, `buildUserContextSnapshot`, `validateAgentActions` (→ `{ validActions, rejected }`), `groupActionsForPreview`, `getActionLabel`.
+- **Prompt:** `src/lib/brain-dump-agent-prompt.ts` — `buildBrainDumpAgentPrompt({ text, currentDateISO, snapshotJson })`. Does **not** instruct the model to omit unused fields, has no few-shot examples, and does not map completion intents ("done", "bought", "finished") to `CHANGE_STATUS`.
+- **Suggest:** `src/app/actions/suggestBrainDumpActions.ts` — passes strict `AgentPlanSchema` to `Output.object` (cause of B1); catches SDK errors and returns the raw message as `error`.
+- **Apply:** `src/app/actions/applyBrainDumpActions.ts` — re-validates, transactional apply, `revalidatePath("/app")`.
+- **UI:** `src/app/app/_components/BrainDumpChat.tsx` + `ActionPreview.tsx` — chat thread, voice input, accept-per-message; renders `result.error` verbatim in the error banner (surfaces raw Zod dumps).
 - **Contracts:** `src/contracts.ts` — `TaskSchema`, `NoteSchema`, `EventSchema`, `TaskStatusSchema`.
-- **Existing mutations:**
-  - `src/app/actions/updateTaskStatus.ts` — single task status with state machine.
-  - `src/app/actions/deleteNote.ts` — note soft-delete.
-- **No** server actions yet for task/event update, task/event soft delete.
-- **Prisma:** `Task` (status enum), `Note` (`deleted_at`), `Event` (title, `dateISO`); all scoped by `user_id`. Currently only `Note` has `deleted_at`.
 - **State machine:** `TODO` ↔ `IN_PROGRESS` / `DONE` / `CANCELLED` per `src/lib/state-machine.ts`.
+- **Prisma:** `Task`, `Note`, `Event` all have `deleted_at`; all scoped by `user_id`.
 
 **Relevant files:**
-- `src/app/actions/processBrainDump.ts`
-- `src/app/app/_components/BrainDumpForm.tsx`
-- `src/app/app/page.tsx`
+- `src/lib/brain-dump-agent.ts`
+- `src/lib/brain-dump-agent-prompt.ts`
+- `src/app/actions/suggestBrainDumpActions.ts`
+- `src/app/actions/applyBrainDumpActions.ts`
+- `src/app/app/_components/BrainDumpChat.tsx`
+- `src/app/app/_components/ActionPreview.tsx`
 - `src/contracts.ts`
 - `src/lib/state-machine.ts`
 - `src/lib/ai-provider.ts`
 
 ## Tasks
+
+> T1–T9 are **done**. T7–T9 fixed bug B1. T7 additionally canonicalizes inside `validateAgentActions`: a task `UPDATE` carrying `status` whose `title` is absent or echoes the snapshot title unchanged becomes `CHANGE_STATUS`.
 
 ### T1: Agent action schema, grouping, and validation
 **What:** Add `src/lib/brain-dump-agent.ts` with:
@@ -177,6 +204,34 @@ Helper: `groupActionsForPreview(actions)` in `src/lib/brain-dump-agent.ts` retur
 **Files:** `src/lib/brain-dump-agent-prompt.ts`
 **Verify:** Manual dumps produce valid flat arrays; invalid suggestions appear in `rejected` only.
 
+### T7: Lenient LLM boundary schema + normalization (fixes B1)
+**What:** In `src/lib/brain-dump-agent.ts`:
+- Add `AgentPlanLLMSchema` — a permissive shape for `Output.object`: `{ actions: z.array(z.looseObject({ action/entityType/id/title/content/dateISO/status: z.string().optional() })) }`. No `.min(1)`, no datetime format, no `.strict()` — its only job is "an array of action-like objects".
+- Add `normalizeAgentActions(raw)`:
+  - Trim all string fields; drop optional fields that are empty/whitespace-only (`""` ⇒ omitted).
+  - Coerce date-only `dateISO` (`YYYY-MM-DD`) to `YYYY-MM-DDT00:00:00Z`; pass through full ISO unchanged.
+  - Rewrite a task `UPDATE` whose only remaining mutable field is `status` into `CHANGE_STATUS` (canonical form; keeps the state-machine path uniform). With this rule, the B1 example normalizes to `{ "action": "CHANGE_STATUS", "entityType": "task", "id": "<uuid>", "status": "DONE" }` and parses cleanly.
+- Add `parseAgentActions(raw)` → `{ parsed: AgentAction[], rejected: RejectedAction[] }`: run `AgentActionSchema.safeParse` on each normalized item; failures go to `rejected[]` with a short readable reason (e.g. `"Invalid action shape: dateISO must be ISO-8601"`), never thrown.
+- In `suggestBrainDumpActions.ts`: use `AgentPlanLLMSchema` in `Output.object`, then `normalize → parse → validateAgentActions`; merge parse-rejected with semantic-rejected in the returned `rejected[]`.
+**Files:** `src/lib/brain-dump-agent.ts`, `src/app/actions/suggestBrainDumpActions.ts`, `src/lib/brain-dump-agent.test.ts`
+**Verify:** Unit test feeding the exact B1 payload returns one valid `CHANGE_STATUS` action and no throw; items with truly unusable shapes land in `rejected`.
+
+### T8: Prompt hardening against malformed output
+**What:** In `src/lib/brain-dump-agent-prompt.ts`:
+- Add rules: "Omit any field you are not setting. Never output empty strings, null, or placeholder values."; "`dateISO` must be full ISO-8601 like `2026-06-10T19:00:00Z` — never an empty string."
+- Map completion intents: "If the user says they did/finished/bought/completed something matching an existing task → `CHANGE_STATUS` with `status: \"DONE\"`" (mirror of the existing cancel rule).
+- Add 2–3 few-shot examples including a status-change case, e.g. dump "ya compré los zapatos" + snapshot task "Comprar zapatos…" → `{"actions":[{"action":"CHANGE_STATUS","entityType":"task","id":"<uuid>","status":"DONE"}]}`.
+**Files:** `src/lib/brain-dump-agent-prompt.ts`
+**Verify:** Manual: the B1 user prompt produces a `CHANGE_STATUS` suggestion with no empty fields.
+
+### T9: Friendly error surface
+**What:**
+- `suggestBrainDumpActions.ts`: in the catch block, `console.error` the full error but return a short fixed message (e.g. "I couldn't turn that into a valid plan. Try rephrasing."); never include Zod issue JSON in `error`. Optionally one automatic retry of `generateText` on parse failure before giving up (no new deps).
+- `BrainDumpChat.tsx`: no structural change needed once `error` is short; keep the existing banner.
+- `ActionPreview.tsx`: ensure `rejected[]` reasons render as the readable strings from T7.
+**Files:** `src/app/actions/suggestBrainDumpActions.ts`, `src/app/app/_components/BrainDumpChat.tsx`, `src/app/app/_components/ActionPreview.tsx`
+**Verify:** Manual: force a malformed model output (or mock) → UI shows the friendly message or a preview with `rejected` items; raw Zod JSON appears only in server logs.
+
 ## Validation
 
 - `pnpm lint`
@@ -184,6 +239,9 @@ Helper: `groupActionsForPreview(actions)` in `src/lib/brain-dump-agent.ts` retur
 - `pnpm build`
 - `pnpm prisma migrate dev` (to add `deleted_at` to `Task` and `Event`, if not present yet)
 - Manual on `/app` (signed in):
+  - [ ] "ya compré los zapatos de Gerald Alberto" (with matching task on board) → preview shows one **Change status → DONE** item; no error banner.
+  - [ ] LLM output with empty-string fields never throws — bad items appear under `rejected`, valid ones remain applyable.
+  - [ ] Error banner never shows raw Zod/JSON payloads.
   - [ ] Submit brain dump → assistant preview shows **grouped** sections (Create / Update / Change status / Delete); no DB change until Accept.
   - [ ] Accept → board updates; Accept button disabled or removed for that message.
   - [ ] `CHANGE_STATUS` on note/event never appears in applyable list (only in rejected if model emits it).

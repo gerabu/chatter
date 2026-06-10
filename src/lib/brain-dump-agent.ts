@@ -96,6 +96,119 @@ export const AgentPlanSchema = z.object({
 export type AgentAction = z.infer<typeof AgentActionSchema>;
 export type AgentPlan = z.infer<typeof AgentPlanSchema>;
 
+// Lenient shape for the LLM boundary (Output.object). Models often emit empty
+// strings for fields they are not setting; the strict AgentActionSchema is
+// applied per item after normalization so one bad item never kills the plan.
+const RawAgentActionSchema = z.looseObject({
+  action: z.string().optional(),
+  entityType: z.string().optional(),
+  id: z.string().optional(),
+  title: z.string().optional(),
+  content: z.string().optional(),
+  dateISO: z.string().optional(),
+  status: z.string().optional(),
+});
+
+export const AgentPlanLLMSchema = z.looseObject({
+  actions: z.array(RawAgentActionSchema).default([]),
+});
+
+export type RawAgentAction = z.infer<typeof RawAgentActionSchema>;
+
+const ACTION_SCHEMAS_BY_TYPE: Record<string, z.ZodType<AgentAction>> = {
+  CREATE: CreateActionSchema,
+  UPDATE: UpdateActionSchema,
+  DELETE: DeleteActionSchema,
+  CHANGE_STATUS: ChangeStatusActionSchema,
+};
+
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function normalizeDateISO(value: string): string {
+  if (DATE_ONLY_PATTERN.test(value)) {
+    return `${value}T00:00:00Z`;
+  }
+  if (z.iso.datetime().safeParse(value).success) {
+    return value;
+  }
+  const ms = Date.parse(value);
+  if (!Number.isNaN(ms)) {
+    return new Date(ms).toISOString();
+  }
+  return value;
+}
+
+export function normalizeAgentActions(rawActions: RawAgentAction[]): Record<string, unknown>[] {
+  return rawActions.map((raw) => {
+    const next: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(raw)) {
+      if (value === null || value === undefined) continue;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) continue;
+        next[key] = trimmed;
+        continue;
+      }
+      next[key] = value;
+    }
+
+    if (typeof next.dateISO === "string") {
+      next.dateISO = normalizeDateISO(next.dateISO);
+    }
+
+    // Canonical form: a task UPDATE whose only effective change is status is a
+    // CHANGE_STATUS, keeping the state-machine path uniform.
+    if (
+      next.action === "UPDATE" &&
+      next.entityType === "task" &&
+      typeof next.status === "string" &&
+      next.title === undefined &&
+      next.content === undefined &&
+      next.dateISO === undefined
+    ) {
+      return { action: "CHANGE_STATUS", entityType: "task", id: next.id, status: next.status };
+    }
+
+    return next;
+  });
+}
+
+function describeParseFailure(candidate: Record<string, unknown>, error: z.ZodError): string {
+  const subject = [candidate.action, candidate.entityType]
+    .filter((part): part is string => typeof part === "string")
+    .join(" ")
+    .toLowerCase() || "suggestion";
+  const issue = error.issues[0];
+  if (!issue) return `Skipped ${subject}: invalid shape.`;
+  const field = issue.path.length > 0 ? issue.path.join(".") : "action";
+  return `Skipped ${subject}: ${field} — ${issue.message}`;
+}
+
+export function parseAgentActions(rawActions: RawAgentAction[]): {
+  parsed: AgentAction[];
+  rejected: RejectedAction[];
+} {
+  const parsed: AgentAction[] = [];
+  const rejected: RejectedAction[] = [];
+
+  for (const candidate of normalizeAgentActions(rawActions)) {
+    const actionType = typeof candidate.action === "string" ? candidate.action : "";
+    const schema = ACTION_SCHEMAS_BY_TYPE[actionType];
+    if (!schema) {
+      rejected.push({ action: candidate, reason: `Skipped suggestion: unknown action "${actionType || "(missing)"}".` });
+      continue;
+    }
+    const result = schema.safeParse(candidate);
+    if (result.success) {
+      parsed.push(result.data);
+      continue;
+    }
+    rejected.push({ action: candidate, reason: describeParseFailure(candidate, result.error) });
+  }
+
+  return { parsed, rejected };
+}
+
 type SnapshotTask = Pick<z.infer<typeof TaskSchema>, "id" | "title" | "status">;
 type SnapshotNote = Pick<z.infer<typeof NoteSchema>, "id" | "content">;
 type SnapshotEvent = Pick<z.infer<typeof EventSchema>, "id" | "title" | "dateISO">;
@@ -106,8 +219,8 @@ type UserSnapshotInput = {
   events: Array<SnapshotEvent & { deleted_at?: Date | null }>;
 };
 
-type RejectedAction = {
-  action: AgentAction;
+export type RejectedAction = {
+  action: AgentAction | Record<string, unknown>;
   reason: string;
 };
 
@@ -196,6 +309,12 @@ export function validateAgentActions(actions: AgentAction[], input: UserSnapshot
       }
       if (action.action === "UPDATE" && action.status && !canTransitionTask(task.status as TaskStatus, action.status)) {
         rejected.push({ action, reason: `Invalid task transition from ${task.status} to ${action.status}.` });
+        continue;
+      }
+      // Models often echo the unchanged title alongside a status change; when
+      // status is the only real change, canonicalize to CHANGE_STATUS.
+      if (action.action === "UPDATE" && action.status && (!action.title || action.title === task.title)) {
+        validActions.push({ action: "CHANGE_STATUS", entityType: "task", id: action.id, status: action.status });
         continue;
       }
       validActions.push(action);

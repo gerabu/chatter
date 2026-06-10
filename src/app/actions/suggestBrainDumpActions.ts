@@ -2,24 +2,35 @@
 
 import { auth } from "@/auth";
 import { buildBrainDumpAgentPrompt } from "@/lib/brain-dump-agent-prompt";
-import { AgentPlanSchema, type AgentAction, validateAgentActions } from "@/lib/brain-dump-agent";
+import {
+  AgentPlanLLMSchema,
+  type AgentAction,
+  type RejectedAction,
+  parseAgentActions,
+  validateAgentActions,
+} from "@/lib/brain-dump-agent";
 import { openai } from "@/lib/ai-provider";
 import { prisma } from "@/lib/prisma";
 import { generateText, Output } from "ai";
-import { z } from "zod";
-
-type Rejected = {
-  action: AgentAction;
-  reason: string;
-};
 
 export type SuggestBrainDumpActionsResult =
-  | { success: true; actions: AgentAction[]; rejected: Rejected[] }
+  | { success: true; actions: AgentAction[]; rejected: RejectedAction[] }
   | { success: false; error: string; errorType: "validation" | "parsing" | "unknown" };
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return "Unexpected error while generating suggestions.";
+const FRIENDLY_FAILURE_MESSAGE = "I couldn't turn that into a valid plan. Please try rephrasing your brain dump.";
+
+async function generatePlan(system: string, prompt: string) {
+  return generateText({
+    model: openai("gpt-4o-mini"),
+    output: Output.object({ schema: AgentPlanLLMSchema }),
+    providerOptions: {
+      openai: {
+        strictJsonSchema: false,
+      },
+    },
+    system,
+    prompt,
+  });
 }
 
 export async function suggestBrainDumpActions(text: string): Promise<SuggestBrainDumpActionsResult> {
@@ -57,19 +68,17 @@ export async function suggestBrainDumpActions(text: string): Promise<SuggestBrai
       snapshotJson: JSON.stringify({ tasks, notes, events }),
     });
 
-    const { output } = await generateText({
-      model: openai("gpt-4o-mini"),
-      output: Output.object({ schema: AgentPlanSchema }),
-      providerOptions: {
-        openai: {
-          strictJsonSchema: false,
-        },
-      },
-      system,
-      prompt,
-    });
+    let output;
+    try {
+      ({ output } = await generatePlan(system, prompt));
+    } catch (firstAttemptError: unknown) {
+      console.error("suggestBrainDumpActions: first model attempt failed, retrying once:", firstAttemptError);
+      ({ output } = await generatePlan(system, prompt));
+    }
 
-    const { validActions, rejected } = validateAgentActions(output.actions, { tasks, notes, events });
+    const { parsed, rejected: parseRejected } = parseAgentActions(output.actions);
+    const { validActions, rejected: semanticRejected } = validateAgentActions(parsed, { tasks, notes, events });
+    const rejected = [...parseRejected, ...semanticRejected];
 
     const tasksById = new Map(tasks.map(t => [t.id, t.title]));
     const notesById = new Map(notes.map(n => [n.id, n.content]));
@@ -87,12 +96,9 @@ export async function suggestBrainDumpActions(text: string): Promise<SuggestBrai
     return { success: true, actions: enrichedActions, rejected };
   } catch (error: unknown) {
     console.error("Error during suggestBrainDumpActions:", error);
-    if ((error instanceof Error && error.name === "TypeValidationError") || error instanceof z.ZodError) {
-      return { success: false, error: `Model output schema mismatch: ${getErrorMessage(error)}`, errorType: "validation" };
+    if (error instanceof Error && (error.name === "JSONParseError" || error.name === "NoObjectGeneratedError" || error.name === "TypeValidationError")) {
+      return { success: false, error: FRIENDLY_FAILURE_MESSAGE, errorType: "parsing" };
     }
-    if (error instanceof Error && (error.name === "JSONParseError" || error.name === "NoObjectGeneratedError")) {
-      return { success: false, error: `Model failed to output valid JSON: ${getErrorMessage(error)}`, errorType: "parsing" };
-    }
-    return { success: false, error: getErrorMessage(error), errorType: "unknown" };
+    return { success: false, error: FRIENDLY_FAILURE_MESSAGE, errorType: "unknown" };
   }
 }

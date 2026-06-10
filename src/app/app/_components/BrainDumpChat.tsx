@@ -2,16 +2,11 @@
 
 import { applyBrainDumpActions } from "@/app/actions/applyBrainDumpActions";
 import { suggestBrainDumpActions } from "@/app/actions/suggestBrainDumpActions";
-import { type AgentAction } from "@/lib/brain-dump-agent";
+import { type AgentAction, type RejectedAction } from "@/lib/brain-dump-agent";
 import { Loader2, Mic, Send, Square } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useRef, useState, useTransition } from "react";
 import { ActionPreview } from "./ActionPreview";
-
-type RejectedAction = {
-  action: AgentAction;
-  reason: string;
-};
 
 type ChatMessage =
   | {
