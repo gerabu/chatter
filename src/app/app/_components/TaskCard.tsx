@@ -12,7 +12,7 @@ export type TaskItem = {
   status: TaskStatus;
 };
 
-const statusLabels: Record<TaskStatus, string> = {
+export const statusLabels: Record<TaskStatus, string> = {
   TODO: "To do",
   IN_PROGRESS: "In Progress",
   DONE: "Done",

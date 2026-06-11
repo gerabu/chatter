@@ -53,6 +53,7 @@ export async function updateTaskStatus(
     });
 
     revalidatePath("/app");
+    revalidatePath("/app/tasks");
     return { success: true };
   } catch (error: unknown) {
     if (error instanceof Error && error.message.startsWith("Invalid state transition")) {
