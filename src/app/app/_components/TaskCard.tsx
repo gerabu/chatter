@@ -3,6 +3,7 @@
 import { updateTaskStatus } from "@/app/actions/updateTaskStatus";
 import { type TaskStatus } from "@/contracts";
 import { getAllowedTaskStatuses } from "@/lib/state-machine";
+import { statusLabels } from "@/lib/task-status";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useState, useTransition } from "react";
 
@@ -10,13 +11,6 @@ export type TaskItem = {
   id: string;
   title: string;
   status: TaskStatus;
-};
-
-export const statusLabels: Record<TaskStatus, string> = {
-  TODO: "To do",
-  IN_PROGRESS: "In Progress",
-  DONE: "Done",
-  CANCELLED: "Cancelled",
 };
 
 const statusStyles: Record<TaskStatus, string> = {

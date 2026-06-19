@@ -1,6 +1,7 @@
 import { type TaskStatus } from "@/contracts";
+import { statusLabels } from "@/lib/task-status";
 import { BoardColumn } from "./BoardColumn";
-import { statusLabels, TaskCard, type TaskItem } from "./TaskCard";
+import { TaskCard, type TaskItem } from "./TaskCard";
 
 type TasksBoardProps = {
   tasks: TaskItem[];
