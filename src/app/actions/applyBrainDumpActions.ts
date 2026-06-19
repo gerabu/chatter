@@ -142,6 +142,7 @@ export async function applyBrainDumpActions(actions: AgentAction[]): Promise<App
 
     revalidatePath("/app");
     revalidatePath("/app/tasks");
+    revalidatePath("/app/events");
     return {
       success: true,
       appliedCounts: {

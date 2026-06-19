@@ -1,9 +1,9 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { Board } from "./_components/Board";
+import { WeeklyCalendar } from "../_components/WeeklyCalendar";
 
-export default async function DashboardPage() {
+export default async function EventsPage() {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -11,10 +11,10 @@ export default async function DashboardPage() {
     redirect("/auth/signin");
   }
 
-  const notes = await prisma.note.findMany({
+  const events = await prisma.event.findMany({
     where: { user_id: userId, deleted_at: null },
-    orderBy: { createdAt: "desc" },
+    orderBy: { dateISO: "asc" },
   });
 
-  return <Board notes={notes} />;
+  return <WeeklyCalendar events={events.map(({ id, title, dateISO }) => ({ id, title, dateISO }))} />;
 }

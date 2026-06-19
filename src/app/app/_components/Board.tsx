@@ -1,5 +1,4 @@
 import { BoardColumn } from "./BoardColumn";
-import { EventCard } from "./EventCard";
 import { NoteCard } from "./NoteCard";
 
 type NoteItem = {
@@ -7,15 +6,8 @@ type NoteItem = {
   content: string;
 };
 
-type EventItem = {
-  id: string;
-  title: string;
-  dateISO: string;
-};
-
 type BoardProps = {
   notes: NoteItem[];
-  events: EventItem[];
 };
 
 function EmptyState({ label }: { label: string }) {
@@ -26,18 +18,12 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
-export function Board({ notes, events }: BoardProps) {
+export function Board({ notes }: BoardProps) {
   return (
     <div className="h-full min-h-0 overflow-y-auto bg-stone-200/85 p-4 bg-[radial-gradient(circle_at_1px_1px,rgba(68,64,60,0.26)_1px,transparent_0)] bg-size-[18px_18px] dark:border-stone-700 dark:bg-stone-900/80 dark:bg-[radial-gradient(circle_at_1px_1px,rgba(231,229,228,0.18)_1px,transparent_0)]">
-      <div className="grid gap-4 xl:grid-cols-2">
-        <BoardColumn title="Notes" itemCount={notes.length}>
-          {notes.length > 0 ? notes.map((note) => <NoteCard key={note.id} note={note} />) : <EmptyState label="No notes yet." />}
-        </BoardColumn>
-
-        <BoardColumn title="Events" itemCount={events.length}>
-          {events.length > 0 ? events.map((event) => <EventCard key={event.id} event={event} />) : <EmptyState label="No events yet." />}
-        </BoardColumn>
-      </div>
+      <BoardColumn title="Notes" itemCount={notes.length}>
+        {notes.length > 0 ? notes.map((note) => <NoteCard key={note.id} note={note} />) : <EmptyState label="No notes yet." />}
+      </BoardColumn>
     </div>
   );
 }
