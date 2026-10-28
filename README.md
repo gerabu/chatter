@@ -4,18 +4,9 @@
 
 **Chatter** turns unstructured text (a “brain dump”) into **tasks**, **notes**, and **events**, then stores them per user so they show up on a board-style app. The model extracts structured data; the app persists it and surfaces it in the UI.
 
-## How we build it: spec-driven development with AI
+## How we build it: Organic Driven Development (ODD)
 
-Development is **spec-first**: requirements and behavior are written down before implementation. AI assistants help draft specs and code against those specs; humans own correctness, review, and release decisions.
-
-### Human-in-the-loop workflow
-
-1. **Planning** — Human defines goals, constraints, and acceptance criteria.
-2. **Writing spec** — AI/agent drafts or expands the spec from that plan.
-3. **Review spec** — Human approves or revises the spec (source of truth).
-4. **Implementing** — AI/agent implements against the approved spec.
-5. **Review code and result** — Human validates behavior, UX, and safety.
-6. **Committing** — AI/agent can propose commit messages; human merges when satisfied.
+Development follows a test‑first, human‑approved cadence. A human defines the problem, writes/approves tests or specs, and AI drafts code that satisfies those tests. Code is only merged after human review, passing tests locally or on CI, and PR approval. AI proposes commit messages, but the human author decides when to merge.
 
 Specs for this repo live under `.ai/specs/` (e.g. brain-dump extraction, migrations).
 
