@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildUserContextSnapshot,
   groupActionsForPreview,
   normalizeAgentActions,
   parseAgentActions,
@@ -25,6 +26,33 @@ const snapshot = {
 };
 
 describe("validateAgentActions", () => {
+  it("defaults a created task to TODO when no status is supplied", () => {
+    const result = validateAgentActions(
+      [{ action: "CREATE", entityType: "task", title: "Plan trip" }],
+      snapshot,
+    );
+
+    expect(result.validActions).toEqual([
+      { action: "CREATE", entityType: "task", title: "Plan trip", status: "TODO" },
+    ]);
+    expect(result.rejected).toEqual([]);
+  });
+
+  it("rejects a repeated operation on the same entity", () => {
+    const action: AgentAction = {
+      action: "DELETE",
+      entityType: "note",
+      id: "22222222-2222-4222-8222-222222222222",
+    };
+
+    const result = validateAgentActions([action, action], snapshot);
+
+    expect(result.validActions).toEqual([action]);
+    expect(result.rejected).toEqual([
+      { action, reason: "Duplicate action for the same entity and operation." },
+    ]);
+  });
+
   it("rejects change status on non-task entities", () => {
     const actions = [
       {
@@ -70,6 +98,31 @@ describe("validateAgentActions", () => {
     const result = validateAgentActions(actions, snapshot);
     expect(result.validActions).toHaveLength(0);
     expect(result.rejected[0]?.reason).toContain("not found");
+  });
+});
+
+describe("buildUserContextSnapshot", () => {
+  it("excludes soft-deleted records and projects only prompt context fields", () => {
+    const result = buildUserContextSnapshot({
+      tasks: [
+        ...snapshot.tasks,
+        { id: "44444444-4444-4444-8444-444444444444", title: "Archived", status: "DONE", deleted_at: new Date() },
+      ],
+      notes: [
+        ...snapshot.notes,
+        { id: "55555555-5555-4555-8555-555555555555", content: "Archived", deleted_at: new Date() },
+      ],
+      events: [
+        ...snapshot.events,
+        { id: "66666666-6666-4666-8666-666666666666", title: "Archived", dateISO: "2026-06-01T00:00:00Z", deleted_at: new Date() },
+      ],
+    });
+
+    expect(result).toEqual({
+      tasks: [{ id: snapshot.tasks[0].id, title: snapshot.tasks[0].title, status: snapshot.tasks[0].status }],
+      notes: [{ id: snapshot.notes[0].id, content: snapshot.notes[0].content }],
+      events: [{ id: snapshot.events[0].id, title: snapshot.events[0].title, dateISO: snapshot.events[0].dateISO }],
+    });
   });
 });
 
