@@ -33,4 +33,18 @@ overhead.
 8. **Commit** – Human writes the commit with a Conventional‑Commit message.
 9. **Merge** – Human merges the PR after final checks.
 
+## Testing Convention: Arrange‑Act‑Assert (AAA)
+
+Every automated test must follow Arrange‑Act‑Assert (AAA):
+
+1. **Arrange** – Prepare the initial state, fixtures, dependencies, and mocks needed by the test.
+2. **Act** – Perform the behavior being tested, preferably through one principal action.
+3. **Assert** – Check observable behavior, outputs, state changes, or side effects.
+
+Tests should describe one meaningful behavior, while allowing multiple related assertions that establish that behavior. Prefer behavioral assertions over implementation details, and avoid excessive snapshots. Use `// Arrange`, `// Act`, and `// Assert` comments to make non-trivial tests clear; comments are optional for short, obvious tests. Avoid assertions that only verify mocked behavior or trivial JavaScript operations.
+
+Apply AAA within strict RED‑GREEN‑REFACTOR cycles for new behavior. When refactoring existing behavior, write passing AAA characterization tests before changing production code. During code review, check AAA clarity, meaningful assertions, determinism, and test isolation.
+
+For E2E tests, follow equivalent AAA semantics: arrange through setup, act through user actions, and assert observable outcomes.
+
 ---
